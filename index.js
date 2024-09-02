@@ -1,6 +1,10 @@
 const express = require("express");
 const cors = require("cors");
+const { MongoClient, ObjectId } = require("mongodb");
 const app = express();
+
+const URL =
+  "mongodb+srv://vasanth:admin123@cluster0.ilc9m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 
 // Midleware
 app.use(
@@ -12,50 +16,165 @@ app.use(express.json());
 
 let users = [];
 
-app.get("/users", (req, res) => {
-  res.json(users);
+app.get("/users", async (req, res) => {
+  try {
+    // 1. Connect the Database Server
+    const connection = await MongoClient.connect(URL);
+
+    // 2. Select the Database
+    const db = connection.db("b61wdtamil");
+
+    // 3. Select the collection
+    const collection = db.collection("students");
+
+    const students = await collection.find({}).toArray();
+
+    // 5. Close the connection
+    await connection.close();
+
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
 });
 
-app.post("/user", (req, res) => {
-  id = users.length + 1;
-  users.push({ ...req.body, id });
+app.post("/user", async (req, res) => {
+  /**
+   * 1. Connect the Database Server
+   * 2. Select the Database
+   * 3. Select the collection
+   * 4. Do the Operation (Insert, Read, Update, Delete)
+   * 5. Close the connection
+   */
+  try {
+    // 1. Connect the Database Server
+    const connection = await MongoClient.connect(URL);
 
-  res.json({ message: "User created successfully" });
+    // 2. Select the Database
+    const db = connection.db("b61wdtamil");
+
+    // 3. Select the collection
+    const collection = db.collection("students");
+
+    if (!req.body.name) {
+      res.status(400).json({
+        message: "Please provide student name",
+      });
+    } else {
+      // 4. Do the Operation (Insert, Read, Update, Delete)
+      await collection.insertOne(req.body);
+
+      // 5. Close the connection
+      await connection.close();
+
+      res.json({
+        message: "Student Created Sucessfully",
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
 });
 
 // /user/3
-app.get("/user/:id", (req, res) => {
-  let user = users.find((obj) => obj.id == req.params.id);
-  if (user) {
-    res.json(user);
+app.get("/user/:id", async (req, res) => {
+  // 1.Connect to Database Server
+  const connection = await MongoClient.connect(URL);
+
+  // 2.Select the database
+  const db = connection.db("b61wdtamil");
+
+  // 3.Select the collection
+  const collection = db.collection("students");
+
+  // '1' == 1 -> True
+  // '1' === 1 -> False
+  // '1' === ObjectId(1) -> False
+  // ObjectId(1) === ObjectId(1) -> True
+
+  // 4.Do the operation
+  const student = await collection.findOne({
+    _id: new ObjectId(req.params.id),
+  });
+
+  // 5.Close the connection
+  await connection.close();
+
+  if (student) {
+    res.json(student);
   } else {
-    res.json({ message: "User Not Found" });
+    res.status(404).json({ message: "User not found" });
   }
 });
 
 // ID, Data
-app.put("/user/:id", (req, res) => {
-  // Find the user by ID
-  let index = users.findIndex((obj) => obj.id == req.params.id);
+app.put("/user/:id", async (req, res) => {
+  try {
+    // 1.Connect to Database Server
+    const connection = await MongoClient.connect(URL);
 
-  if (!users[index]) {
-    res.json({ message: "User not found" });
-  } else {
-    // Change the data
-    users[index] = { ...req.body, id: parseInt(req.params.id) };
+    // 2.Select the database
+    const db = connection.db("b61wdtamil");
 
-    // Return
-    res.json({ message: "User Updated Succesfully" });
+    // 3.Select the collection
+    const collection = db.collection("students");
+
+    // let omitId = Object.keys(req.body);
+    // let filter = {};
+
+    // omitId.forEach((obj) => {
+    //   if (obj !== "_id") {
+    //     filter[obj] = req.body[obj];
+    //   }
+    // });
+
+    // console.log(filter);
+
+    delete req.body._id;
+    // 4. Do the Operation
+    const student = await collection.findOneAndUpdate(
+      { _id: new ObjectId(req.params.id) },
+      {
+        $set: req.body,
+      }
+    );
+
+    // 5.Close the connection
+    await connection.close();
+
+    if (student) {
+      res.json(student);
+    } else {
+      res.status(404).json({ message: "User not found" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      message: "Somrhting went worng",
+    });
   }
 });
 
-app.delete("/user/:id", (req, res) => {
-  // Find the index
-  let index = users.findIndex((obj) => obj.id == req.params.id);
-  // Delete the index
-  users.splice(index, 1);
+app.delete("/user/:id", async (req, res) => {
+  // 1.Connect to Database Server
+  const connection = await MongoClient.connect(URL);
 
-  res.json({ message: "User Deleted" });
+  // 2.Select the database
+  const db = connection.db("b61wdtamil");
+
+  // 3.Select the collection
+  const collection = db.collection("students");
+
+  // 4.Delete the User
+  await collection.findOneAndDelete({ _id: new ObjectId(req.params.id) });
+
+  await connection.close();
+
+  res.json({message : "Deleted Successfully"})
 });
 
 app.listen(3000, () => {
