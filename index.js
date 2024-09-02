@@ -2,9 +2,11 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
 const app = express();
+const dotenv = require("dotenv")
+dotenv.config()
 
-const URL =
-  "mongodb+srv://vasanth:admin123@cluster0.ilc9m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+
+const URL = process.env.DB;
 
 // Midleware
 app.use(
