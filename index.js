@@ -9,7 +9,7 @@ const URL =
 // Midleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://steady-syrniki-a3bad6.netlify.app",
   })
 );
 app.use(express.json());
