@@ -2,23 +2,41 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
 const app = express();
-const dotenv = require("dotenv")
-dotenv.config()
-
+const dotenv = require("dotenv");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+dotenv.config();
 
 const URL = process.env.DB;
+const SECRET_KEY =
+  "CKSNBMSLZFHGXdgwufgvbhawmaeo4378rtgxyuhjzbdxfxckquebivjqexiv";
 
 // Midleware
 app.use(
   cors({
-    origin: "https://steady-syrniki-a3bad6.netlify.app",
+    // origin: "https://steady-syrniki-a3bad6.netlify.app",
+    origin: "http://localhost:5173",
   })
 );
 app.use(express.json());
 
 let users = [];
 
-app.get("/users", async (req, res) => {
+let authenticate = (req, res, next) => {
+  if (!req.headers.authorization) {
+    res.status(401).json({ message: "Unauthorized" });
+  } else {
+    jwt.verify(req.headers.authorization, SECRET_KEY, (error, data) => {
+      if (error) {
+        res.status(401).json({ message: "Unauthorized" });
+      }
+      req.userId = data.id
+      next();
+    });
+  }
+};
+
+app.get("/users", authenticate, async (req, res) => {
   try {
     // 1. Connect the Database Server
     const connection = await MongoClient.connect(URL);
@@ -42,7 +60,7 @@ app.get("/users", async (req, res) => {
   }
 });
 
-app.post("/user", async (req, res) => {
+app.post("/user",authenticate, async (req, res) => {
   /**
    * 1. Connect the Database Server
    * 2. Select the Database
@@ -83,7 +101,7 @@ app.post("/user", async (req, res) => {
 });
 
 // /user/3
-app.get("/user/:id", async (req, res) => {
+app.get("/user/:id",authenticate, async (req, res) => {
   // 1.Connect to Database Server
   const connection = await MongoClient.connect(URL);
 
@@ -114,7 +132,7 @@ app.get("/user/:id", async (req, res) => {
 });
 
 // ID, Data
-app.put("/user/:id", async (req, res) => {
+app.put("/user/:id",authenticate, async (req, res) => {
   try {
     // 1.Connect to Database Server
     const connection = await MongoClient.connect(URL);
@@ -161,7 +179,7 @@ app.put("/user/:id", async (req, res) => {
   }
 });
 
-app.delete("/user/:id", async (req, res) => {
+app.delete("/user/:id",authenticate, async (req, res) => {
   // 1.Connect to Database Server
   const connection = await MongoClient.connect(URL);
 
@@ -176,9 +194,113 @@ app.delete("/user/:id", async (req, res) => {
 
   await connection.close();
 
-  res.json({message : "Deleted Successfully"})
+  res.json({ message: "Deleted Successfully" });
+});
+
+app.post("/register", async (req, res) => {
+  try {
+    // 1.Connect to Database Server
+    const connection = await MongoClient.connect(URL);
+
+    // 2.Select the database
+    const db = connection.db("b61wdtamil");
+
+    // 3.Select the collection
+    const collection = db.collection("teachers");
+
+    // Hash
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(req.body.password, salt);
+
+    req.body.password = hash;
+
+    // 4.Delete the User
+    await collection.insertOne(req.body);
+
+    await connection.close();
+
+    res.json({ message: "Teacher Registered Successfully" });
+  } catch (error) {
+    res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
+});
+
+app.post("/login", async (req, res) => {
+  try {
+    // 1.Connect to Database Server
+    const connection = await MongoClient.connect(URL);
+
+    // 2.Select the database
+    const db = connection.db("b61wdtamil");
+
+    // 3.Select the collection
+    const collection = db.collection("teachers");
+
+    /**
+     * Find the User by Email id
+     * If user not found throw error
+     *
+     * If user found?
+     * check the attemt. If the attempt is less than 3 then proceed
+     * hash the given password
+     * compare the given hash with db hash
+     * If hash is not same
+     * increment the attempt and
+     * throw error
+     *
+     * If hash is same?
+     * Generate token
+     */
+
+    const user = await collection.findOne({ email: req.body.email });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Incorrect Username/Password",
+      });
+    }
+
+    if (user.attempt && user.attempt == 3) {
+      return res.status(401).json({
+        message: "attempt execedded",
+      });
+    }
+
+    const passwordCorrect = await bcrypt.compare(
+      req.body.password,
+      user.password
+    );
+
+    if (!passwordCorrect) {
+      await collection.findOneAndUpdate(
+        { email: req.body.email },
+        {
+          $inc: {
+            attempt: 1,
+          },
+        }
+      );
+      return res.status(401).json({
+        message: "Incorrect Username/Password",
+      });
+    }
+    await connection.close();
+    // Generate Token
+    const token = jwt.sign({ id: user._id }, SECRET_KEY);
+
+    return res.json({ message: token });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
 });
 
 app.listen(3000, () => {
   console.log("Webserver is running in port 3000");
 });
+
+// abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*(){}_+~,./\`=-
