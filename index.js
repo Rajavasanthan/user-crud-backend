@@ -212,7 +212,6 @@ app.post("/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(req.body.password, salt);
 
-    req.body.pass = req.body.password;
     req.body.password = hash;
 
     // 4.Delete the User
